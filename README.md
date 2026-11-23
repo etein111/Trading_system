@@ -144,6 +144,28 @@ Qlib 训练报告见 [QLIB_TRAINING_REPORT.md](QLIB_TRAINING_REPORT.md)；报告
   --qlib-scores research/qlib_model_enhanced/qlib_walk_forward_scores.csv
 ```
 
+模型到账户的桥接使用同一份历史分数和扩展候选池：
+
+```bash
+.venv/bin/python -m trading_system research \
+  --data research/expanded_data/prices.csv \
+  --output research/qlib_backtest_bridge \
+  --qlib-scores research/qlib_model_enhanced/qlib_walk_forward_scores.csv \
+  --candidates-file research/expanded_data/symbols.txt
+```
+
+本地行情驱动模拟账户时，可以避免实时数据源波动：
+
+```bash
+.venv/bin/python -m trading_system paper-run \
+  --config config_qlib.yaml \
+  --data research/expanded_data/prices.csv \
+  --qlib-scores research/qlib_model_enhanced/qlib_scores.csv \
+  --candidates-file research/expanded_data/symbols.txt
+```
+
+`--enforce-price-eligibility` 可选地再加趋势门槛；默认让模型分数负责排序，由组合风险规则负责仓位。
+
 ## 真实行情模拟账户
 
 `paper-run` 使用本地 JSON 账户保存现金和持仓，读取最新历史行情后按策略目标权重进行模拟成交。它只写入本地状态和交易日志，不访问券商，也不会提交真实订单。

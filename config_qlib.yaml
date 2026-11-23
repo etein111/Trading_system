@@ -1,0 +1,96 @@
+starting_cash: 40000
+benchmark: SPY
+core_symbol: SPY
+active_symbols:
+  - AAPL
+  - MSFT
+  - AMZN
+  - GOOGL
+  - META
+  - NVDA
+  - AMD
+  - AVGO
+  - ORCL
+  - CRM
+  - ADBE
+  - NFLX
+  - NOW
+  - PANW
+  - PLTR
+  - SNOW
+  - MU
+  - ANET
+  - INTU
+  - QCOM
+  - TXN
+  - IBM
+  - ADSK
+  - ADI
+  - AMAT
+  - CDNS
+  - SNPS
+  - KLAC
+  - LRCX
+  - MCHP
+  - MRVL
+  - ON
+  - FTNT
+  - CRWD
+  - DDOG
+  - ZS
+  - NET
+  - OKTA
+  - MDB
+  - TEAM
+  - VEEV
+  - HUBS
+  - TTD
+  - UBER
+  - DASH
+  - TSLA
+  - PYPL
+  - SQ
+  - COIN
+  - HOOD
+  - RBLX
+  - ROKU
+  - DOCU
+  - TWLO
+  - BILL
+  - WDAY
+  - PINS
+  - SNAP
+  - SPOT
+  - GPN
+  - FIS
+  - PAYC
+  - FICO
+
+
+core_weight_risk_on: 0.60
+core_weight_risk_off: 0.40
+reserve_weight: 0.20
+active_weight: 0.20
+max_active_positions: 4
+max_single_active_weight: 0.06
+
+short_window: 20
+medium_window: 50
+long_window: 200
+momentum_window: 60
+stop_distance: 0.10
+max_trade_risk: 0.005
+
+drawdown_review: 0.10
+drawdown_reduce: 0.15
+drawdown_circuit_breaker: 0.20
+transaction_cost_bps: 5
+min_paper_trade_notional: 25
+
+selection_min_history: 252
+selection_min_price: 5
+selection_momentum_lookback: 252
+selection_momentum_skip: 21
+selection_momentum_short: 60
+selection_volatility_window: 63
+

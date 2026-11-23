@@ -27,6 +27,12 @@ def _config_path(value):
     return value or str(Path(__file__).resolve().parents[1] / "config.yaml")
 
 
+def _load_symbols_file(value):
+    if not value:
+        return None
+    return [line.strip().upper() for line in Path(value).read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+
+
 def _run(prices, config, output):
     result = run_backtest(prices, config)
     result.save(output)
@@ -50,6 +56,8 @@ def main():
     backtest.add_argument("--config", default=None)
     backtest.add_argument("--output", default="artifacts")
     backtest.add_argument("--qlib-scores", default=None, help="historical Qlib scores CSV")
+    backtest.add_argument("--candidates-file", default=None, help="one candidate symbol per line")
+    backtest.add_argument("--enforce-price-eligibility", action="store_true")
 
     research = subparsers.add_parser("research", help="run a chronological backtest and benchmark report")
     research.add_argument("--data", required=True)
@@ -57,6 +65,8 @@ def main():
     research.add_argument("--config", default=None)
     research.add_argument("--output", default="research")
     research.add_argument("--qlib-scores", default=None, help="historical Qlib scores CSV")
+    research.add_argument("--candidates-file", default=None, help="one candidate symbol per line")
+    research.add_argument("--enforce-price-eligibility", action="store_true")
 
     download = subparsers.add_parser("download", help="download adjusted closes with optional yfinance")
     download.add_argument("--symbols", nargs="+", required=True)
@@ -76,6 +86,7 @@ def main():
     select.add_argument("--config", default=None)
     select.add_argument("--output", default=None)
     select.add_argument("--qlib-scores", default=None, help="use a Qlib score CSV with symbol,score,available_at")
+    select.add_argument("--enforce-price-eligibility", action="store_true")
 
     train_public = subparsers.add_parser("train-public", help="train a point-in-time model from SEC and price data")
     train_public.add_argument("--prices", required=True)
@@ -117,6 +128,10 @@ def main():
     paper.add_argument("--end", default=None)
     paper.add_argument("--lookback-days", type=int, default=900)
     paper.add_argument("--slippage-bps", type=float, default=5.0)
+    paper.add_argument("--data", default=None, help="local close-price CSV; avoids live data download")
+    paper.add_argument("--qlib-scores", default=None, help="historical Qlib scores CSV")
+    paper.add_argument("--candidates-file", default=None, help="one candidate symbol per line")
+    paper.add_argument("--enforce-price-eligibility", action="store_true")
 
     args = parser.parse_args()
     if args.command == "download":
@@ -200,9 +215,17 @@ def main():
 
     config = SystemConfig.from_yaml(_config_path(args.config))
     if args.command == "paper-run":
-        symbols = list(dict.fromkeys([config.benchmark, config.core_symbol] + config.active_symbols))
+        candidate_symbols = _load_symbols_file(args.candidates_file)
+        symbols = list(dict.fromkeys([config.benchmark, config.core_symbol] + (candidate_symbols or config.active_symbols)))
         start = args.start or (date.today() - timedelta(days=args.lookback_days)).isoformat()
-        prices = download_yfinance(symbols, start=start, end=args.end)
+        if args.data:
+            prices = load_close_csv(args.data)
+            if args.start:
+                prices = prices.loc[prices.index >= pd.Timestamp(args.start)]
+            if args.end:
+                prices = prices.loc[prices.index <= pd.Timestamp(args.end)]
+        else:
+            prices = download_yfinance(symbols, start=start, end=args.end)
         account = PaperAccount.load(args.state, config.starting_cash)
         latest = prices.iloc[-1]
         latest_prices = {symbol: float(latest[symbol]) for symbol in prices.columns if pd.notna(latest[symbol])}
@@ -210,7 +233,17 @@ def main():
         risk = RiskManager(config)
         risk.equity = equity
         risk.high_watermark = max(account.high_watermark, equity)
-        target = RegimeStrategy(config).target_weights(prices, risk.state())
+        selector_backend = (
+            QlibScoreBackend(
+                pd.read_csv(args.qlib_scores),
+                enforce_price_eligibility=args.enforce_price_eligibility,
+            )
+            if args.qlib_scores
+            else None
+        )
+        target = RegimeStrategy(
+            config, selector_backend=selector_backend, candidates=candidate_symbols
+        ).target_weights(prices, risk.state())
         orders = account.execute_target(
             target,
             latest_prices,
@@ -260,9 +293,21 @@ def main():
     elif args.command == "backtest":
         prices = load_close_csv(args.data)
         fundamentals = load_fundamentals_csv(args.fundamentals) if args.fundamentals else None
-        selector_backend = QlibScoreBackend(pd.read_csv(args.qlib_scores)) if args.qlib_scores else None
+        candidate_symbols = _load_symbols_file(args.candidates_file)
+        selector_backend = (
+            QlibScoreBackend(
+                pd.read_csv(args.qlib_scores),
+                enforce_price_eligibility=args.enforce_price_eligibility,
+            )
+            if args.qlib_scores
+            else None
+        )
         result = run_backtest(
-            prices, config, fundamentals=fundamentals, selector_backend=selector_backend
+            prices,
+            config,
+            fundamentals=fundamentals,
+            selector_backend=selector_backend,
+            candidate_symbols=candidate_symbols,
         )
         result.save(args.output)
         print(json.dumps(result.metrics, indent=2))
@@ -270,9 +315,21 @@ def main():
     elif args.command == "research":
         prices = load_close_csv(args.data)
         fundamentals = load_fundamentals_csv(args.fundamentals) if args.fundamentals else None
-        selector_backend = QlibScoreBackend(pd.read_csv(args.qlib_scores)) if args.qlib_scores else None
+        candidate_symbols = _load_symbols_file(args.candidates_file)
+        selector_backend = (
+            QlibScoreBackend(
+                pd.read_csv(args.qlib_scores),
+                enforce_price_eligibility=args.enforce_price_eligibility,
+            )
+            if args.qlib_scores
+            else None
+        )
         summary = run_research(
-            prices, config, fundamentals=fundamentals, selector_backend=selector_backend
+            prices,
+            config,
+            fundamentals=fundamentals,
+            selector_backend=selector_backend,
+            candidate_symbols=candidate_symbols,
         )
         output = Path(args.output)
         output.mkdir(parents=True, exist_ok=True)
@@ -288,7 +345,9 @@ def main():
         candidates = args.symbols or config.active_symbols
         if args.qlib_scores:
             qlib_scores = pd.read_csv(args.qlib_scores)
-            ranked = QlibScoreBackend(qlib_scores).select(
+            ranked = QlibScoreBackend(
+                qlib_scores, enforce_price_eligibility=args.enforce_price_eligibility
+            ).select(
                 prices, candidates=candidates, asof=args.asof or prices.index[-1], fundamentals=fundamentals
             )
         else:
