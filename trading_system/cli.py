@@ -161,6 +161,13 @@ def main():
     text_signals.add_argument("--limit-per-symbol", type=int, default=100)
     text_signals.add_argument("--forms", nargs="+", default=["8-K", "8-K/A", "10-Q", "10-Q/A", "10-K", "10-K/A"])
 
+    free_text = subparsers.add_parser("free-text-signals", help="fetch public RSS/Atom press-release text signals")
+    free_text.add_argument("--feeds-file", required=True, help="YAML file containing feeds: symbol, url, source")
+    free_text.add_argument("--output", default="research/free_text_signals.csv")
+    free_text.add_argument("--asof", default=None)
+    free_text.add_argument("--lookback-days", type=int, default=None)
+    free_text.add_argument("--config", default=None)
+
     portfolio_risk = subparsers.add_parser("portfolio-risk", help="analyze portfolio concentration, beta, volatility and stress")
     portfolio_risk.add_argument("--data", required=True)
     portfolio_risk.add_argument("--state", default="paper/account.json")
@@ -279,6 +286,18 @@ def main():
         return
 
     config = SystemConfig.from_yaml(_config_path(args.config))
+    if args.command == "free-text-signals":
+        from .free_text import build_rss_signals, load_feed_specs
+
+        frame = build_rss_signals(
+            load_feed_specs(args.feeds_file),
+            output=args.output,
+            asof=args.asof,
+            lookback_days=args.lookback_days,
+        )
+        print(json.dumps({"output": str(Path(args.output).resolve()), "rows": int(len(frame)), "symbols": int(frame["symbol"].nunique()) if not frame.empty else 0, "failures": frame.attrs.get("failures", {})}, indent=2))
+        return
+
     if args.command == "portfolio-risk":
         prices = load_close_csv(args.data)
         account = PaperAccount.load(args.state, config.starting_cash)

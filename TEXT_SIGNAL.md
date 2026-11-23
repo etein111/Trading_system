@@ -27,6 +27,29 @@ available_at <= signal_asof
 symbol,score,event_risk,hard_risk,available_at,form,accession,source,evidence_id,evidence_excerpt
 ```
 
+## 免费 RSS/Atom 来源
+
+不需要 API key 的新闻和公司公告可以通过公开 RSS/Atom 源接入。配置文件格式：
+
+```yaml
+feeds:
+  - symbol: AAPL
+    source: company_ir
+    url: https://example.com/investor-news.rss
+```
+
+运行：
+
+```bash
+.venv/bin/python -m trading_system free-text-signals \
+  --feeds-file research/free_feeds.yaml \
+  --output research/free_text_signals.csv \
+  --asof 2026-11-23 \
+  --lookback-days 30
+```
+
+支持 RSS 和 Atom，保留标题、摘要、发布时间、来源 URL 和文本证据。可以使用公司 IR、PR Newswire、GlobeNewswire 等公开订阅源；每个 feed 应只绑定到正确的公司，不能把全市场 feed 直接标记成单一股票。
+
 ## 运行
 
 ```bash

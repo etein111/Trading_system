@@ -177,7 +177,7 @@ Qlib 训练报告见 [QLIB_TRAINING_REPORT.md](QLIB_TRAINING_REPORT.md)；报告
 
 ## SEC 文本信号
 
-系统支持 SEC 8-K、10-Q、10-K 的点时文本事件和情绪基线。文本信号保留 `available_at`、accession、来源和证据摘录，可单独使用，也可与 Qlib 分数融合。详见 [TEXT_SIGNAL.md](TEXT_SIGNAL.md)。
+系统支持 SEC 8-K、10-Q、10-K 的点时文本事件和情绪基线，也支持不需要 API key 的 RSS/Atom 公司公告和新闻源。文本信号保留 `available_at`、accession、来源和证据摘录，可单独使用，也可与 Qlib 分数融合。详见 [TEXT_SIGNAL.md](TEXT_SIGNAL.md)。
 
 ```bash
 .venv/bin/python -m trading_system text-signals \
