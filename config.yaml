@@ -1,0 +1,43 @@
+starting_cash: 40000
+benchmark: SPY
+core_symbol: SPY
+active_symbols:
+  - QQQ
+  - XLK
+  - MSFT
+  - AMZN
+  - NVDA
+  - PLTR
+
+core_weight_risk_on: 0.60
+core_weight_risk_off: 0.40
+reserve_weight: 0.20
+active_weight: 0.20
+max_active_positions: 4
+max_single_active_weight: 0.06
+
+short_window: 20
+medium_window: 50
+long_window: 200
+momentum_window: 60
+stop_distance: 0.10
+max_trade_risk: 0.005
+
+drawdown_review: 0.10
+drawdown_reduce: 0.15
+drawdown_circuit_breaker: 0.20
+transaction_cost_bps: 5
+min_paper_trade_notional: 25
+
+selection_min_history: 252
+selection_min_price: 5
+selection_momentum_lookback: 252
+selection_momentum_skip: 21
+selection_momentum_short: 60
+selection_volatility_window: 63
+
+
+risk_lookback_days: 252
+max_portfolio_volatility: 0.35
+max_portfolio_beta: 1.25
+portfolio_stress_loss_limit: 0.20

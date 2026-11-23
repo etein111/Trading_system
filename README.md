@@ -164,7 +164,16 @@ Qlib 训练报告见 [QLIB_TRAINING_REPORT.md](QLIB_TRAINING_REPORT.md)；报告
   --candidates-file research/expanded_data/symbols.txt
 ```
 
-`--enforce-price-eligibility` 可选地再加趋势门槛；默认让模型分数负责排序，由组合风险规则负责仓位。
+`--enforce-price-eligibility` 可选地再加趋势门槛；默认让模型分数负责排序，由组合风险规则负责仓位。组合风险层说明见 [PORTFOLIO_RISK.md](PORTFOLIO_RISK.md)。
+
+分析现有账户的 beta、波动率、集中度和压力测试：
+
+```bash
+.venv/bin/python -m trading_system portfolio-risk \
+  --data research/expanded_data/prices.csv \
+  --state paper/account.json \
+  --config config_qlib.yaml
+```
 
 ## 真实行情模拟账户
 

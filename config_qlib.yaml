@@ -94,3 +94,8 @@ selection_momentum_skip: 21
 selection_momentum_short: 60
 selection_volatility_window: 63
 
+
+risk_lookback_days: 252
+max_portfolio_volatility: 0.35
+max_portfolio_beta: 1.25
+portfolio_stress_loss_limit: 0.20

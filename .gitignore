@@ -38,3 +38,5 @@ research/qlib_backtest_optimized_raw/
 research/qlib_model_enhanced/
 research/qlib_backtest_enhanced/
 research/qlib_backtest_bridge*/
+research/qlib_model_run*/
+research/qlib_backtest_risk_layer/

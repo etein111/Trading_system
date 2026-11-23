@@ -93,7 +93,7 @@ def run_backtest(
         previous_date = dates[index - 1]
         history = history_asof(prices, date)
         risk_state = risk.state()
-        target = strategy.target_weights(history, risk_state)
+        target = strategy.target_weights(history, risk_state, current_weights=previous_weights)
 
         # Apply a trailing stop to active holdings. A stop removes the target for the next session.
         for symbol in list(target):

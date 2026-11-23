@@ -4,6 +4,7 @@ import pandas as pd
 
 from .selector import SelectionConfig
 from .selector_backend import PriceFactorBackend, SelectorBackend
+from .portfolio_risk import adjust_target_weights
 
 
 class RegimeStrategy:
@@ -34,7 +35,7 @@ class RegimeStrategy:
         sma_long = benchmark.rolling(self.config.long_window).mean().iloc[-1]
         return bool(benchmark.iloc[-1] > sma_long and sma_short > sma_medium)
 
-    def target_weights(self, history: pd.DataFrame, risk_state) -> Dict[str, float]:
+    def target_weights(self, history: pd.DataFrame, risk_state, current_weights=None) -> Dict[str, float]:
         if history.empty or self.config.benchmark not in history:
             return {}
         weights: Dict[str, float] = {}
@@ -68,5 +69,8 @@ class RegimeStrategy:
         )
         for symbol in selected:
             weights[symbol] = per_position
-        return weights
+        decision = adjust_target_weights(
+            history, weights, self.config, risk_state=risk_state, asof=history.index[-1]
+        )
+        return decision.target_weights
 

@@ -21,6 +21,7 @@ from .risk import RiskManager
 from .strategy import RegimeStrategy
 from .selector import PointInTimeSelector, SelectionConfig
 from .selector_backend import QlibScoreBackend
+from .portfolio_risk import analyze_account
 
 
 def _config_path(value):
@@ -120,6 +121,14 @@ def main():
     train_qlib.add_argument("--no-cross-sectional-rank", action="store_true")
     train_qlib.add_argument("--holdout-start", default="2024-01-01")
 
+    portfolio_risk = subparsers.add_parser("portfolio-risk", help="analyze portfolio concentration, beta, volatility and stress")
+    portfolio_risk.add_argument("--data", required=True)
+    portfolio_risk.add_argument("--state", default="paper/account.json")
+    portfolio_risk.add_argument("--config", default=None)
+    portfolio_risk.add_argument("--asof", default=None)
+    portfolio_risk.add_argument("--lookback-days", type=int, default=252)
+    portfolio_risk.add_argument("--output", default=None)
+
     paper = subparsers.add_parser("paper-run", help="mark and rebalance a local simulated account")
     paper.add_argument("--state", default="paper/account.json")
     paper.add_argument("--log", default="paper/trades.csv")
@@ -214,6 +223,23 @@ def main():
         return
 
     config = SystemConfig.from_yaml(_config_path(args.config))
+    if args.command == "portfolio-risk":
+        prices = load_close_csv(args.data)
+        account = PaperAccount.load(args.state, config.starting_cash)
+        risk_report = analyze_account(
+            account,
+            prices,
+            benchmark=config.benchmark,
+            asof=args.asof or prices.index[-1],
+            lookback=args.lookback_days,
+            config=config,
+        )
+        if args.output:
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.output).write_text(json.dumps(risk_report, indent=2), encoding="utf-8")
+        print(json.dumps(risk_report, indent=2))
+        return
+
     if args.command == "paper-run":
         candidate_symbols = _load_symbols_file(args.candidates_file)
         symbols = list(dict.fromkeys([config.benchmark, config.core_symbol] + (candidate_symbols or config.active_symbols)))
@@ -233,6 +259,9 @@ def main():
         risk = RiskManager(config)
         risk.equity = equity
         risk.high_watermark = max(account.high_watermark, equity)
+        portfolio_risk = analyze_account(
+            account, prices, benchmark=config.benchmark, asof=prices.index[-1], config=config
+        )
         selector_backend = (
             QlibScoreBackend(
                 pd.read_csv(args.qlib_scores),
@@ -241,9 +270,14 @@ def main():
             if args.qlib_scores
             else None
         )
+        current_weights = {
+            symbol: float(account.positions.get(symbol, 0.0) * latest_prices.get(symbol, 0.0) / equity)
+            for symbol in account.positions
+            if equity > 0 and latest_prices.get(symbol, 0.0) > 0
+        }
         target = RegimeStrategy(
             config, selector_backend=selector_backend, candidates=candidate_symbols
-        ).target_weights(prices, risk.state())
+        ).target_weights(prices, risk.state(), current_weights=current_weights)
         orders = account.execute_target(
             target,
             latest_prices,
@@ -278,6 +312,7 @@ def main():
                     "target_weights": target,
                     "orders": [order.__dict__ for order in orders],
                     "account": account.summary(latest_prices),
+                    "portfolio_risk": portfolio_risk,
                 },
                 indent=2,
             )
