@@ -20,11 +20,11 @@ import pandas as pd
 from qlib.data.dataset.loader import DataLoader
 from qlib.model.base import Model
 
-from .public_training import FEATURE_COLUMNS, TrainingConfig
+from .public_training import ENHANCED_TECHNICAL_FEATURE_COLUMNS, FEATURE_COLUMNS, TrainingConfig
 
 FUNDAMENTAL_FEATURE_COLUMNS = ["roe", "roa", "fcf_margin", "revenue_growth", "earnings_growth"]
-TECHNICAL_FEATURE_COLUMNS = FEATURE_COLUMNS[:5]
-QLIB_FEATURE_COLUMNS = FEATURE_COLUMNS + [f"{column}_missing" for column in FUNDAMENTAL_FEATURE_COLUMNS]
+TECHNICAL_FEATURE_COLUMNS = ENHANCED_TECHNICAL_FEATURE_COLUMNS
+QLIB_FEATURE_COLUMNS = ENHANCED_TECHNICAL_FEATURE_COLUMNS + [f"{column}_missing" for column in FUNDAMENTAL_FEATURE_COLUMNS]
 
 
 class StaticDataLoader(DataLoader):
@@ -91,6 +91,12 @@ def _prepare_rows(
         rows[f"{column}_missing"] = rows[column].isna().astype(float)
 
     base_columns = [column for column in feature_columns if not column.endswith("_missing")]
+    for column in base_columns:
+        if column not in rows:
+            rows[column] = np.nan
+    for column in feature_columns:
+        if column.endswith("_missing") and column not in rows:
+            rows[column] = np.nan
     if cross_sectional_rank:
         for column in base_columns:
             values = pd.to_numeric(rows[column], errors="coerce")
@@ -300,6 +306,7 @@ def train_qlib_walk_forward(
     num_boost_round: int = 80,
     early_stopping_rounds: int = 0,
     purge_validation: bool = True,
+    holdout_start: Optional[str] = "2024-01-01",
 ) -> Dict[str, object]:
     """Train and export point-in-time Qlib scores with robust walk-forward splits."""
 
@@ -417,6 +424,12 @@ def train_qlib_walk_forward(
     )
     processed_train.to_csv(output / "processed_training_samples.csv", index=False)
 
+    holdout_metrics = {}
+    if holdout_start and not prediction_frame.empty:
+        holdout_frame = prediction_frame[prediction_frame["date"] >= pd.Timestamp(holdout_start)]
+        holdout_values = _metrics(holdout_frame)
+        holdout_metrics = {"final_holdout_" + key: value for key, value in holdout_values.items()}
+
     summary = {
         "model": "Qlib DatasetH/DataHandlerLP + LightGBM",
         "qlib_version": _qlib_version(),
@@ -434,8 +447,10 @@ def train_qlib_walk_forward(
         "walk_forward_iterations_mean": float(np.mean(iteration_counts)) if iteration_counts else None,
         "top_k": int(config.top_k),
         "asof": str(asof),
+        "final_holdout_start": holdout_start,
         "data_contract": "features are as-of feature_date; labels satisfy label_end < evaluation date; validation labels are purged across the split",
         **_metrics(prediction_frame),
+        **holdout_metrics,
     }
     (output / "qlib_training_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary

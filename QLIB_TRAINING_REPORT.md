@@ -1,6 +1,6 @@
 # Qlib 优化训练与验证报告
 
-运行日期：2026-11-20
+运行日期：2026-11-23
 
 ## 数据补充
 
@@ -8,7 +8,7 @@
 
 - 61 只可用美国科技/成长股票；另有 SQ 因 SEC CIK 无法匹配而记录为失败
 - SPY 基准
-- 2010-01-04 至 2026-11-19 的调整后日收盘价
+- 2010-01-04 至 2026-11-19 的调整后日收盘价和 raw daily volume
 - 8,774 行点时样本，188 个特征日期
 - 最终模型训练窗口包含 5,308 行、61 个标的
 - SEC Company Facts 覆盖 61/62 个请求标的
@@ -23,7 +23,7 @@
 2. 每个评估日只使用 `label_end < evaluation_date` 的样本。
 3. train/validation 按日期切分，并移除标签区间跨入 validation 的训练行。
 4. 特征在每个日期做横截面百分位排名，减少价格尺度和极端值影响。
-5. 默认主模型使用 5 个技术特征：60 日动量、跳过最近 21 日的 252 日动量、200 日趋势距离、63 日波动率、252 日回撤。
+5. 默认主模型使用 14 个价格/成交量特征：20/60/126 日动量、跳过最近 21 日的 252 日动量、50/200 日趋势距离、20/63 日波动率、252 日回撤、相对 SPY 动量、20 日成交量比率和成交量 z-score。
 6. 基本面特征加入缺失指标，但默认作为对照模型，不强行混入主模型。
 7. 取消当前数据下不稳定的早停，使用固定 80 棵树。
 8. 保留 `rank` 与 `raw` 两种目标，便于比较排名目标和收益目标。
@@ -37,11 +37,12 @@
 | 旧 Qlib 基线 | 价格 + SEC 基本面 | raw + early stop | 3.71% | 55.26% |
 | 扩充完整模型 | 价格 + SEC 基本面 + 缺失指标 | rank | 6.32% | 66.67% |
 | 扩充技术面模型 | 技术特征 | rank | 7.48% | 75.93% |
-| 当前候选模型 | 技术特征 | raw | 8.08% | 72.22% |
+| 旧候选模型 | 价格技术特征 | raw | 8.08% | 72.22% |
+| 当前增强模型 | 价格 + 相对 SPY + 成交量特征 | raw | 8.28% | 74.07% |
 
-按评估日期计算的平均横截面 Rank IC 从旧模型的 -0.083 提升到当前候选模型的 +0.044，正 IC 日期占比从 47.2% 提升到 71.2%。这说明改动主要改善了排序方向，而不只是依赖少数收益异常值。
+按评估日期计算的平均横截面 Rank IC 从旧模型的 -0.083 提升到增强模型的约 +0.044，正 IC 日期占比约 71%。增强模型在 2024-01-01 之后的 11 个留出事件中，平均超额收益为 15.21%，胜率为 90.91%。留出区间仍然较短，不能当作新的收益承诺。
 
-当前候选模型输出在 `research/qlib_model_optimized/`。它的选择依据是：基本面缺失率较高、技术面单变量信号更稳定、固定树数避免早停退化。由于多个版本是在同一历史区间上比较的，8.08% 仍可能包含模型选择偏差，不能当作新的收益承诺。
+当前增强模型输出在 `research/qlib_model_enhanced/`。模型参数在留出区间前固定，报告同时保留全样本外和最终留出区间指标。
 
 ## 组合回放
 
@@ -55,16 +56,19 @@
 | 期末资金（起始 40,000） | 182,385 | 339,230 |
 | lookahead violations | 0 | — |
 
+当前增强模型的组合回放仍使用原有主动候选配置，因此组合 CAGR 和旧候选模型相同；新增特征主要改善了 61 只股票横截面上的排序，需要扩大实际主动候选池后才会传导到组合层。
+
 组合层面仍然没有击败 SPY。当前策略体现的是较低回撤和较高 Sharpe，而不是已经验证的 Alpha。回撤改善还受到核心仓位、现金缓冲和市场状态过滤影响，不能全部归因于 Qlib 模型。
 
 ## 产物
 
-- `research/qlib_model_optimized/qlib_model.pkl`：当前候选模型
-- `research/qlib_model_optimized/qlib_scores.csv`：最新点时分数
-- `research/qlib_model_optimized/qlib_walk_forward_scores.csv`：2,659 条历史分数，可按日期回放
-- `research/qlib_model_optimized/qlib_walk_forward_predictions.csv`：样本外选股结果
-- `research/qlib_model_optimized/qlib_walk_forward_iterations.csv`：每个窗口的树数
-- `research/qlib_model_optimized/processed_training_samples.csv`：横截面处理后的训练数据
-- `research/qlib_backtest_optimized/`：组合回放结果
+- `research/qlib_model_enhanced/qlib_model.pkl`：当前增强模型
+- `research/qlib_model_enhanced/qlib_scores.csv`：最新点时分数
+- `research/qlib_model_enhanced/qlib_walk_forward_scores.csv`：2,659 条历史分数，可按日期回放
+- `research/qlib_model_enhanced/qlib_walk_forward_predictions.csv`：样本外选股结果
+- `research/qlib_model_enhanced/qlib_walk_forward_iterations.csv`：每个窗口的树数
+- `research/qlib_model_enhanced/processed_training_samples.csv`：横截面处理后的训练数据
+- `research/qlib_backtest_enhanced/`：组合回放结果
+- `research/expanded_data/volumes.csv`：成交量数据
 
-下一步应固定一段完全不参与模型选择的最新时间作为最终验证集，并加入成交量、行业中性化、财报预期变化和更完整的历史成分股数据后再考虑接入模拟账户。
+下一步应扩大实际主动候选池，加入行业中性化和更完整的历史成分股数据，再决定是否接入模拟账户。

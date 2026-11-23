@@ -7,7 +7,7 @@ import pandas as pd
 
 from .backtest import run_backtest
 from .config import SystemConfig
-from .data import download_yfinance, generate_demo_prices, load_close_csv, load_fundamentals_csv
+from .data import download_yfinance, generate_demo_prices, load_close_csv, load_fundamentals_csv, load_volume_csv
 from .evaluate import run_research
 from .paper import PaperAccount
 from .public_training import (
@@ -92,7 +92,8 @@ def main():
     train_qlib.add_argument("--symbols", nargs="+", required=True)
     train_qlib.add_argument("--benchmark", default="SPY")
     train_qlib.add_argument("--cache-dir", default="research/sec_cache")
-    train_qlib.add_argument("--output", default="research/qlib_model_optimized")
+    train_qlib.add_argument("--output", default="research/qlib_model_enhanced")
+    train_qlib.add_argument("--volumes", default=None, help="optional raw volume CSV aligned to the price dates")
     train_qlib.add_argument("--horizon-days", type=int, default=60)
     train_qlib.add_argument("--train-years", type=int, default=8)
     train_qlib.add_argument("--minimum-train-samples", type=int, default=500)
@@ -106,6 +107,7 @@ def main():
         help="include SEC fundamental features; default uses technical features only",
     )
     train_qlib.add_argument("--no-cross-sectional-rank", action="store_true")
+    train_qlib.add_argument("--holdout-start", default="2024-01-01")
 
     paper = subparsers.add_parser("paper-run", help="mark and rebalance a local simulated account")
     paper.add_argument("--state", default="paper/account.json")
@@ -158,6 +160,7 @@ def main():
         )
 
         prices = load_close_csv(args.prices)
+        volumes = load_volume_csv(args.volumes) if args.volumes else None
         fundamentals = build_sec_fundamentals(args.symbols, cache_dir=args.cache_dir)
         output = Path(args.output)
         output.mkdir(parents=True, exist_ok=True)
@@ -175,8 +178,9 @@ def main():
             benchmark=args.benchmark,
             symbols=args.symbols,
             config=config_qlib,
+            volumes=volumes,
         )
-        latest = build_latest_features(prices, fundamentals, args.symbols)
+        latest = build_latest_features(prices, fundamentals, args.symbols, volumes=volumes)
         samples.to_csv(output / "training_samples.csv", index=False)
         summary = train_qlib_walk_forward(
             samples,
@@ -187,6 +191,7 @@ def main():
             target_mode=args.target_mode,
             cross_sectional_rank=not args.no_cross_sectional_rank,
             num_boost_round=args.num_boost_round,
+            holdout_start=args.holdout_start,
         )
         summary["sec_failures"] = fundamentals.attrs.get("failures", {})
         (output / "qlib_training_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

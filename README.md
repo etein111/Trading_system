@@ -121,17 +121,18 @@ python3 -m trading_system train-public \
   --prices research/expanded_data/prices.csv \
   --symbols $(tr '\n' ' ' < research/expanded_data/symbols.txt) \
   --cache-dir research/expanded_data/sec_cache \
-  --output research/qlib_model_optimized
+  --volumes research/expanded_data/volumes.csv \
+  --output research/qlib_model_enhanced
 ```
 
-默认使用技术特征、原始超额收益目标和固定 80 棵树；需要把 SEC 基本面加入对照时追加 `--include-fundamentals`，需要排名目标时使用 `--target-mode rank`。输出的 `qlib_scores.csv` 可由 `QlibScoreBackend` 读取，也可以直接用于选股：
+默认使用价格、相对 SPY 和成交量特征、原始超额收益目标、固定 80 棵树，并生成 2024 年之后的最终留出指标；需要把 SEC 基本面加入对照时追加 `--include-fundamentals`，需要排名目标时使用 `--target-mode rank`。输出的 `qlib_scores.csv` 可由 `QlibScoreBackend` 读取，也可以直接用于选股：
 
 ```bash
 .venv/bin/python -m trading_system select \
   --data research/expanded_data/prices.csv \
   --symbols AAPL MSFT AMZN NVDA PLTR CRWD DDOG AVGO MU \
   --asof 2026-11-19 \
-  --qlib-scores research/qlib_model_optimized/qlib_scores.csv
+  --qlib-scores research/qlib_model_enhanced/qlib_scores.csv
 ```
 
 Qlib 训练报告见 [QLIB_TRAINING_REPORT.md](QLIB_TRAINING_REPORT.md)；报告中的 LightGBM 结果仍低于随机森林基线，所以不会自动改变模拟账户仓位。历史分数还可以进入组合回放：
@@ -139,8 +140,8 @@ Qlib 训练报告见 [QLIB_TRAINING_REPORT.md](QLIB_TRAINING_REPORT.md)；报告
 ```bash
 .venv/bin/python -m trading_system research \
   --data research/expanded_data/prices.csv \
-  --output research/qlib_backtest_optimized \
-  --qlib-scores research/qlib_model_optimized/qlib_walk_forward_scores.csv
+  --output research/qlib_backtest_enhanced \
+  --qlib-scores research/qlib_model_enhanced/qlib_walk_forward_scores.csv
 ```
 
 ## 真实行情模拟账户

@@ -35,3 +35,5 @@ research/qlib_model_optimized_selected/
 research/qlib_backtest_optimized_raw/
 
 .key
+research/qlib_model_enhanced/
+research/qlib_backtest_enhanced/

@@ -11,7 +11,7 @@ import argparse
 import json
 from pathlib import Path
 
-from trading_system.data import download_yfinance
+from trading_system.data import download_yfinance, download_yfinance_volume
 from trading_system.public_training import build_sec_fundamentals
 
 SYMBOLS = [
@@ -37,8 +37,11 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     cache = Path(args.cache_dir or output / "sec_cache")
     symbols = list(SYMBOLS)
-    prices = download_yfinance(["SPY"] + symbols, start=args.start, end=args.end)
+    all_symbols = ["SPY"] + symbols
+    prices = download_yfinance(all_symbols, start=args.start, end=args.end)
+    volumes = download_yfinance_volume(all_symbols, start=args.start, end=args.end)
     prices.to_csv(output / "prices.csv", index_label="date")
+    volumes.to_csv(output / "volumes.csv", index_label="date")
     (output / "symbols.txt").write_text("\n".join(symbols) + "\n", encoding="utf-8")
     fundamentals = build_sec_fundamentals(symbols, cache_dir=str(cache))
     fundamentals.to_csv(output / "fundamentals.csv", index=False)
