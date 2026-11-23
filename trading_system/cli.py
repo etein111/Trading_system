@@ -20,7 +20,7 @@ from .public_training import (
 from .risk import RiskManager
 from .strategy import RegimeStrategy
 from .selector import PointInTimeSelector, SelectionConfig
-from .selector_backend import QlibScoreBackend
+from .selector_backend import BlendedSelector, QlibScoreBackend, TextScoreBackend
 from .portfolio_risk import analyze_account
 
 
@@ -32,6 +32,30 @@ def _load_symbols_file(value):
     if not value:
         return None
     return [line.strip().upper() for line in Path(value).read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+
+
+def _selector_backend_from_args(args):
+    backends = []
+    weights = []
+    if getattr(args, "qlib_scores", None):
+        backends.append(
+            QlibScoreBackend(
+                pd.read_csv(args.qlib_scores),
+                enforce_price_eligibility=getattr(args, "enforce_price_eligibility", False),
+            )
+        )
+        weights.append(1.0)
+    if getattr(args, "text_scores", None):
+        backends.append(
+            TextScoreBackend(
+                pd.read_csv(args.text_scores),
+                max_event_risk=getattr(args, "text_max_event_risk", 0.65),
+            )
+        )
+        weights.append(float(getattr(args, "text_weight", 0.35)))
+    if not backends:
+        return None
+    return backends[0] if len(backends) == 1 else BlendedSelector(backends, weights=weights)
 
 
 def _run(prices, config, output):
@@ -59,6 +83,9 @@ def main():
     backtest.add_argument("--qlib-scores", default=None, help="historical Qlib scores CSV")
     backtest.add_argument("--candidates-file", default=None, help="one candidate symbol per line")
     backtest.add_argument("--enforce-price-eligibility", action="store_true")
+    backtest.add_argument("--text-scores", default=None, help="point-in-time SEC text scores CSV")
+    backtest.add_argument("--text-weight", type=float, default=0.35)
+    backtest.add_argument("--text-max-event-risk", type=float, default=0.65)
 
     research = subparsers.add_parser("research", help="run a chronological backtest and benchmark report")
     research.add_argument("--data", required=True)
@@ -68,6 +95,9 @@ def main():
     research.add_argument("--qlib-scores", default=None, help="historical Qlib scores CSV")
     research.add_argument("--candidates-file", default=None, help="one candidate symbol per line")
     research.add_argument("--enforce-price-eligibility", action="store_true")
+    research.add_argument("--text-scores", default=None, help="point-in-time SEC text scores CSV")
+    research.add_argument("--text-weight", type=float, default=0.35)
+    research.add_argument("--text-max-event-risk", type=float, default=0.65)
 
     download = subparsers.add_parser("download", help="download adjusted closes with optional yfinance")
     download.add_argument("--symbols", nargs="+", required=True)
@@ -88,6 +118,9 @@ def main():
     select.add_argument("--output", default=None)
     select.add_argument("--qlib-scores", default=None, help="use a Qlib score CSV with symbol,score,available_at")
     select.add_argument("--enforce-price-eligibility", action="store_true")
+    select.add_argument("--text-scores", default=None)
+    select.add_argument("--text-weight", type=float, default=0.35)
+    select.add_argument("--text-max-event-risk", type=float, default=0.65)
 
     train_public = subparsers.add_parser("train-public", help="train a point-in-time model from SEC and price data")
     train_public.add_argument("--prices", required=True)
@@ -121,6 +154,13 @@ def main():
     train_qlib.add_argument("--no-cross-sectional-rank", action="store_true")
     train_qlib.add_argument("--holdout-start", default="2024-01-01")
 
+    text_signals = subparsers.add_parser("text-signals", help="fetch point-in-time SEC filing text signals")
+    text_signals.add_argument("--symbols", nargs="+", required=True)
+    text_signals.add_argument("--cache-dir", default="research/sec_text_cache")
+    text_signals.add_argument("--output", default="research/text_signals.csv")
+    text_signals.add_argument("--limit-per-symbol", type=int, default=100)
+    text_signals.add_argument("--forms", nargs="+", default=["8-K", "8-K/A", "10-Q", "10-Q/A", "10-K", "10-K/A"])
+
     portfolio_risk = subparsers.add_parser("portfolio-risk", help="analyze portfolio concentration, beta, volatility and stress")
     portfolio_risk.add_argument("--data", required=True)
     portfolio_risk.add_argument("--state", default="paper/account.json")
@@ -141,6 +181,9 @@ def main():
     paper.add_argument("--qlib-scores", default=None, help="historical Qlib scores CSV")
     paper.add_argument("--candidates-file", default=None, help="one candidate symbol per line")
     paper.add_argument("--enforce-price-eligibility", action="store_true")
+    paper.add_argument("--text-scores", default=None)
+    paper.add_argument("--text-weight", type=float, default=0.35)
+    paper.add_argument("--text-max-event-risk", type=float, default=0.65)
 
     args = parser.parse_args()
     if args.command == "download":
@@ -149,6 +192,19 @@ def main():
         destination.parent.mkdir(parents=True, exist_ok=True)
         prices.to_csv(destination, index_label="date")
         print("saved:", str(destination.resolve()))
+        return
+
+    if args.command == "text-signals":
+        from .text_signal import build_text_signals
+
+        frame = build_text_signals(
+            args.symbols,
+            output=args.output,
+            cache_dir=args.cache_dir,
+            forms=args.forms,
+            limit_per_symbol=args.limit_per_symbol,
+        )
+        print(json.dumps({"output": str(Path(args.output).resolve()), "rows": int(len(frame)), "symbols": int(frame["symbol"].nunique()) if not frame.empty else 0, "failures": frame.attrs.get("failures", {})}, indent=2))
         return
 
     if args.command == "train-public":
@@ -262,14 +318,7 @@ def main():
         portfolio_risk = analyze_account(
             account, prices, benchmark=config.benchmark, asof=prices.index[-1], config=config
         )
-        selector_backend = (
-            QlibScoreBackend(
-                pd.read_csv(args.qlib_scores),
-                enforce_price_eligibility=args.enforce_price_eligibility,
-            )
-            if args.qlib_scores
-            else None
-        )
+        selector_backend = _selector_backend_from_args(args)
         current_weights = {
             symbol: float(account.positions.get(symbol, 0.0) * latest_prices.get(symbol, 0.0) / equity)
             for symbol in account.positions
@@ -329,14 +378,7 @@ def main():
         prices = load_close_csv(args.data)
         fundamentals = load_fundamentals_csv(args.fundamentals) if args.fundamentals else None
         candidate_symbols = _load_symbols_file(args.candidates_file)
-        selector_backend = (
-            QlibScoreBackend(
-                pd.read_csv(args.qlib_scores),
-                enforce_price_eligibility=args.enforce_price_eligibility,
-            )
-            if args.qlib_scores
-            else None
-        )
+        selector_backend = _selector_backend_from_args(args)
         result = run_backtest(
             prices,
             config,
@@ -351,14 +393,7 @@ def main():
         prices = load_close_csv(args.data)
         fundamentals = load_fundamentals_csv(args.fundamentals) if args.fundamentals else None
         candidate_symbols = _load_symbols_file(args.candidates_file)
-        selector_backend = (
-            QlibScoreBackend(
-                pd.read_csv(args.qlib_scores),
-                enforce_price_eligibility=args.enforce_price_eligibility,
-            )
-            if args.qlib_scores
-            else None
-        )
+        selector_backend = _selector_backend_from_args(args)
         summary = run_research(
             prices,
             config,
@@ -378,11 +413,9 @@ def main():
         prices = load_close_csv(args.data)
         fundamentals = load_fundamentals_csv(args.fundamentals) if args.fundamentals else None
         candidates = args.symbols or config.active_symbols
-        if args.qlib_scores:
-            qlib_scores = pd.read_csv(args.qlib_scores)
-            ranked = QlibScoreBackend(
-                qlib_scores, enforce_price_eligibility=args.enforce_price_eligibility
-            ).select(
+        if args.qlib_scores or args.text_scores:
+            selector_backend = _selector_backend_from_args(args)
+            ranked = selector_backend.select(
                 prices, candidates=candidates, asof=args.asof or prices.index[-1], fundamentals=fundamentals
             )
         else:

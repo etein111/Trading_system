@@ -40,3 +40,6 @@ research/qlib_backtest_enhanced/
 research/qlib_backtest_bridge*/
 research/qlib_model_run*/
 research/qlib_backtest_risk_layer/
+research/sec_text_cache/
+research/text_signals.csv
+research/text_signals.summary.json

@@ -75,6 +75,37 @@ class QlibScoreBackend(SelectorBackend):
         return scores.sort_values("score", ascending=False).reset_index(drop=True)
 
 
+class TextScoreBackend(SelectorBackend):
+    """Consume point-in-time SEC text/event scores."""
+
+    name = "text_signals"
+
+    def __init__(self, scores: pd.DataFrame, max_event_risk: float = 0.65):
+        required = {"symbol", "score", "available_at"}
+        if not required.issubset(scores.columns):
+            raise ValueError("text scores must contain symbol, score and available_at columns")
+        self.scores = scores.copy()
+        self.scores["available_at"] = pd.to_datetime(self.scores["available_at"])
+        if "event_risk" not in self.scores:
+            self.scores["event_risk"] = 0.0
+        self.scores["event_risk"] = pd.to_numeric(self.scores["event_risk"], errors="coerce").fillna(0.0)
+        self.max_event_risk = float(max_event_risk)
+
+    def select(self, prices, candidates, asof, fundamentals=None):
+        asof = pd.Timestamp(asof)
+        allowed = set(candidates)
+        scores = self.scores[
+            (self.scores["available_at"] <= asof) & self.scores["symbol"].isin(allowed)
+        ].sort_values("available_at")
+        scores = scores.drop_duplicates("symbol", keep="last")
+        if scores.empty:
+            return pd.DataFrame(columns=["symbol", "score", "eligible", "event_risk", "mode"])
+        scores = scores.copy()
+        scores["eligible"] = scores["event_risk"] < self.max_event_risk
+        scores["mode"] = self.name
+        return scores.sort_values(["eligible", "score"], ascending=[False, False]).reset_index(drop=True)
+
+
 class BlendedSelector(SelectorBackend):
     """Blend independent backends after each has passed its own as-of filter."""
 

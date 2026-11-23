@@ -175,6 +175,18 @@ Qlib 训练报告见 [QLIB_TRAINING_REPORT.md](QLIB_TRAINING_REPORT.md)；报告
   --config config_qlib.yaml
 ```
 
+## SEC 文本信号
+
+系统支持 SEC 8-K、10-Q、10-K 的点时文本事件和情绪基线。文本信号保留 `available_at`、accession、来源和证据摘录，可单独使用，也可与 Qlib 分数融合。详见 [TEXT_SIGNAL.md](TEXT_SIGNAL.md)。
+
+```bash
+.venv/bin/python -m trading_system text-signals \
+  --symbols AAPL MSFT NVDA \
+  --output research/text_signals.csv
+```
+
+文本信号默认只影响候选排序和事件风险过滤，最终仓位仍由组合风险层决定。
+
 ## 真实行情模拟账户
 
 `paper-run` 使用本地 JSON 账户保存现金和持仓，读取最新历史行情后按策略目标权重进行模拟成交。它只写入本地状态和交易日志，不访问券商，也不会提交真实订单。
