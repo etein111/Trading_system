@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "personal-trading-system"
+version = "0.1.0"
+description = "Rule-based US equity research and paper-trading scaffold"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy>=1.22",
+  "pandas>=1.5",
+  "PyYAML>=6.0",
+  "yfinance>=1.2.0",
+  "requests>=2.31",
+  "scikit-learn>=1.1",
+  "pyqlib>=0.9.7",
+  "lightgbm>=4.0",
+]
+
+[project.scripts]
+trading-system = "trading_system.cli:main"
+
