@@ -191,6 +191,7 @@ def main():
     paper.add_argument("--text-scores", default=None)
     paper.add_argument("--text-weight", type=float, default=0.35)
     paper.add_argument("--text-max-event-risk", type=float, default=0.65)
+    paper.add_argument("--allow-fractional", action="store_true", help="allow fractional shares; default is whole shares")
 
     args = parser.parse_args()
     if args.command == "download":
@@ -353,6 +354,7 @@ def main():
             slippage=args.slippage_bps / 10000.0,
             min_trade_notional=config.min_paper_trade_notional,
             timestamp=str(prices.index[-1]),
+            whole_shares=not args.allow_fractional,
         )
         account.save(args.state)
         if orders:

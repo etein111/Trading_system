@@ -43,3 +43,5 @@ research/qlib_backtest_risk_layer/
 research/sec_text_cache/
 research/text_signals.csv
 research/text_signals.summary.json
+automation.env
+research/daily_reports/

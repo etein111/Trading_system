@@ -166,6 +166,22 @@ Qlib 训练报告见 [QLIB_TRAINING_REPORT.md](QLIB_TRAINING_REPORT.md)；报告
 
 `--enforce-price-eligibility` 可选地再加趋势门槛；默认让模型分数负责排序，由组合风险规则负责仓位。组合风险层说明见 [PORTFOLIO_RISK.md](PORTFOLIO_RISK.md)。
 
+### 每日自动化邮件
+
+自动化脚本按香港时间盘前 22:20、盘中 01:00、盘后 05:10 运行。盘后会刷新公开数据、重训 Qlib 模型并更新本地模拟账户；三次运行都会生成风险、证据和整股调仓建议。首次使用需要在本机执行：
+
+```bash
+./scripts/install_automation.sh
+```
+
+脚本会把 Gmail App Password 存入 macOS Keychain，`GMAIL_TO` 只写入本地未跟踪的 `automation.env`。取消自动化：
+
+```bash
+./scripts/uninstall_automation.sh
+```
+
+自动化不会提交真实券商订单；盘后模拟账户只使用整股数量。
+
 分析现有账户的 beta、波动率、集中度和压力测试：
 
 ```bash
